@@ -1,0 +1,84 @@
+<ion-header [translucent]="true" *ngIf="!isViewing">
+  <ion-toolbar color="primary">
+    <ion-title>EasyFile</ion-title>
+
+    <ion-buttons slot="end">
+      <ion-button (click)="scanDevice()" [disabled]="isScanning">
+        <ion-icon slot="icon-only" name="reload-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+
+  <div *ngIf="isScanning" class="ion-padding ion-text-center" style="margin-top: 50px;">
+    <ion-spinner name="crescent" color="primary"></ion-spinner>
+    <p style="color: var(--ion-color-medium);">Buscando documentos...</p>
+  </div>
+
+  <ion-list *ngIf="!isViewing && allDocuments.length > 0 && !isScanning">
+    <ion-list-header>
+      <ion-label style="font-weight: bold; font-size: 1.1rem;">Documentos Disponibles</ion-label>
+    </ion-list-header>
+
+    <ion-item *ngFor="let doc of allDocuments" (click)="renderDocument(doc)" button detail="false">
+      <ion-icon slot="start"
+        [name]="doc.name.toLowerCase().endsWith('.pdf') ? 'document-text-outline' : 'document-outline'"
+        [color]="doc.name.toLowerCase().endsWith('.pdf') ? 'danger' : 'primary'">
+      </ion-icon>
+
+      <ion-label>
+        <h2 style="font-weight: 500; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{{ doc.name }}
+        </h2>
+        <p>{{ doc.date | date:'dd/MM/yyyy hh:mm a' }}</p>
+      </ion-label>
+
+      <ion-badge slot="end"
+        [color]="doc.origin === 'WhatsApp' || doc.origin === 'WhatsApp Business' ? 'success' : (doc.origin === 'Descargas' ? 'tertiary' : 'medium')">
+        {{ doc.origin }}
+      </ion-badge>
+    </ion-item>
+  </ion-list>
+
+  <div *ngIf="!isViewing && allDocuments.length === 0 && !isScanning" class="ion-padding ion-text-center"
+    style="margin-top: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <ion-icon name="folder-open-outline"
+      style="font-size: 80px; color: var(--ion-color-medium); margin-bottom: 15px;"></ion-icon>
+    <h3 style="font-weight: bold; color: var(--ion-color-dark);">No se encontraron documentos</h3>
+    <p style="color: var(--ion-color-medium); max-width: 280px; margin: 0 auto; line-height: 1.4;">
+      Asegúrate de tener archivos .pdf o .docx en tus carpetas de Descargas, Documentos o WhatsApp.
+    </p>
+  </div>
+
+  <div *ngIf="isViewing" class="visor-container ion-padding">
+
+    <div *ngIf="pdfSrc" class="pdf-render-box">
+      <pdf-viewer [src]="pdfSrc" [render-text]="true" [original-size]="false" style="width: 100%; height: 75vh;">
+      </pdf-viewer>
+    </div>
+
+    <div *ngIf="wordHtml" class="word-render-box" [innerHTML]="wordHtml"
+      style="background: white; padding: 15px; border-radius: 8px; overflow-y: auto; height: 75vh; color: black;">
+    </div>
+  </div>
+
+  <ion-fab slot="fixed" vertical="bottom" horizontal="end" *ngIf="!isViewing">
+    <ion-fab-button color="primary" (click)="scanDevice()" [disabled]="isScanning">
+      <ion-icon name="folder-open-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+
+</ion-content>
+
+<ion-footer *ngIf="isViewing">
+  <ion-toolbar color="light">
+    <ion-title size="small" style="font-size: 0.9rem;">{{ currentFileName }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button color="danger" (click)="closeDocument()">
+        <ion-icon slot="start" name="close-outline"></ion-icon>
+        Cerrar
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-footer>

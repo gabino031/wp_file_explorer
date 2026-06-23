@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EaSyFile</string>
+    <string name="title_activity_main">EaSyFile</string>
+    <string name="package_name">com.gabinofile.easyfile</string>
+    <string name="custom_url_scheme">com.gabinofile.easyfile</string>
+</resources>

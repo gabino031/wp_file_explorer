@@ -1,0 +1,65 @@
+// Centrado de la animación de carga inicial
+.pantalla-carga,
+.sin-documentos {
+  margin-top: 40px;
+  color: var(--ion-color-step-600);
+
+  ion-spinner {
+    transform: scale(1.5);
+    margin-bottom: 15px;
+  }
+}
+
+// Estenedor principal del lector interno
+.contenedor-visor-interno {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  background-color: #f4f5f8; // Fondo gris ligero para hacer contraste con las páginas
+}
+
+// Contenedor específico para el canvas del PDF
+.wrapper-pdf {
+  width: 100%;
+  height: 100%;
+}
+
+// Contenedor de Word: Emula una hoja de papel real (Diseño profesional de lectura)
+.wrapper-word {
+  background: #ffffff;
+  color: #333333;
+  margin: 10px auto;
+  padding: 25px 20px;
+  max-width: 600px;
+  min-height: 95%;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  overflow-x: auto;
+
+  // Ajustes de etiquetas de Mammoth dentro de la vista móvil
+  h1,
+  h2,
+  h3 {
+    color: var(--ion-color-primary, #3880ff);
+    margin-top: 20px;
+  }
+
+  p {
+    margin-bottom: 14px;
+    text-align: justify;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse;
+    margin: 15px 0;
+
+    td,
+    th {
+      border: 1px solid #ddd;
+      padding: 8px;
+    }
+  }
+}
