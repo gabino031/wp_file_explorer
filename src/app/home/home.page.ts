@@ -1,11 +1,41 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonFooter, IonButtons, IonButton, IonList, IonItem, IonLabel, IonListHeader, IonSpinner, IonBadge } from '@ionic/angular/standalone';
+import {
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonFab,
+  IonFabButton,
+  IonIcon,
+  IonButtons,
+  IonButton,
+  IonList,
+  IonItem,
+  IonLabel,
+  IonListHeader,
+  IonSpinner,
+  IonBadge,
+  IonSearchbar
+} from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { documentTextOutline, folderOpenOutline, settingsOutline, homeOutline, closeOutline, documentOutline, reloadOutline } from 'ionicons/icons';
+import {
+  documentTextOutline,
+  folderOpenOutline,
+  settingsOutline,
+  homeOutline,
+  closeOutline,
+  documentOutline,
+  reloadOutline,
+  searchOutline,
+  arrowBackOutline,
+  addCircleOutline,
+  removeCircleOutline
+} from 'ionicons/icons';
 import { PdfViewerModule } from 'ng2-pdf-viewer';
 import * as mammoth from 'mammoth';
 import { Filesystem, Directory } from '@capacitor/filesystem';
+import { App } from '@capacitor/app'; // Aseguramos el ciclo de vida nativo
 
 interface DocumentItem {
   id: number;
@@ -21,7 +51,26 @@ interface DocumentItem {
   selector: 'app-home',
   templateUrl: 'home.page.html',
   styleUrls: ['home.page.scss'],
-  imports: [CommonModule, IonHeader, IonToolbar, IonTitle, IonContent, IonFab, IonFabButton, IonIcon, IonFooter, IonButtons, IonButton, IonList, IonItem, IonLabel, IonListHeader, IonSpinner, PdfViewerModule, IonBadge],
+  imports: [
+    CommonModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonFab,
+    IonFabButton,
+    IonIcon,
+    IonButtons,
+    IonButton,
+    IonList,
+    IonItem,
+    IonLabel,
+    IonListHeader,
+    IonSpinner,
+    PdfViewerModule,
+    IonBadge,
+    IonSearchbar
+  ],
 })
 export class HomePage implements OnInit {
   public isViewing: boolean = false;
@@ -29,43 +78,90 @@ export class HomePage implements OnInit {
   public pdfSrc: Uint8Array | null = null;
   public wordHtml: string = '';
   public currentFileName: string = '';
+
   public allDocuments: DocumentItem[] = [];
+  public filteredDocuments: DocumentItem[] = [];
+
+  // Control de Zoom
+  public zoomLevel: number = 1.0;
 
   constructor() {
-    addIcons({ documentTextOutline, folderOpenOutline, settingsOutline, homeOutline, closeOutline, documentOutline, reloadOutline });
+    addIcons({
+      documentTextOutline,
+      folderOpenOutline,
+      settingsOutline,
+      homeOutline,
+      closeOutline,
+      documentOutline,
+      reloadOutline,
+      searchOutline,
+      arrowBackOutline,
+      addCircleOutline,
+      removeCircleOutline
+    });
     (window as any).pdfWorkerSrc = 'assets/pdf.worker.min.mjs';
   }
 
   async ngOnInit() {
-    await this.scanDevice(); // Tu escaneo normal de carpetas
+    (window as any).initEasyFileReady = true;
+    this.inicializarReceptorDeArchivos();
+    await this.scanDevice();
+  }
 
-    // 🔥 ESCUCHAR SI OTRA APP NOS MANDÓ UN ARCHIVO
-    window.addEventListener('archivoRecibido', async (event: any) => {
+  /* ===========================================================================*/
+  /* 🔥 RECEPTOR DE ARCHIVOS DESDE LA MAINACTIVITY (WHATSAPP / EXTERNOS)        */
+  /* ===========================================================================*/
+  private inicializarReceptorDeArchivos() {
+    // Definimos el callback extractor para reutilizarlo de forma segura
+    const procesarEvento = (event: any) => {
       const datosArchivo = event.detail;
-      if (datosArchivo && datosArchivo.url) {
-        console.log('Archivo recibido desde otra app:', datosArchivo.url);
-
-        // Creamos un objeto temporal idéntico a tu interfaz DocumentItem
-        const documentoExterno = {
-          id: 999,
-          name: datosArchivo.url.substring(datosArchivo.url.lastIndexOf('/') + 1) || 'Documento_Externo',
-          mimeType: datosArchivo.url.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          date: Date.now(),
-          uri: datosArchivo.url,
-          path: datosArchivo.url
-        };
-
-        // Forzamos a tu visor actual a renderizar el archivo que nos pasaron
-        await this.renderDocument(documentoExterno);
+      if (datosArchivo && datosArchivo.data) {
+        console.log('¡Base64 de archivo externo recibido con éxito desde MainActivity!');
+        this.cargarBase64EnVisor(datosArchivo.nombre, datosArchivo.data);
       }
-    });
+    };
+
+    // Escuchar si el evento llega estando la app ya abierta
+    window.addEventListener('archivoRecibido', procesarEvento);
+
+    // 💡 SOLUCIÓN AL ARRANQUE EN FRÍO: Si la MainActivity guardó el archivo en una propiedad global 
+    // antes de que Angular terminara de cargar, lo leemos directamente aquí.
+    if ((window as any).archivoPendiente) {
+      console.log('Detectado un archivo pendiente guardado durante el arranque.');
+      const pendiente = (window as any).archivoPendiente;
+      this.cargarBase64EnVisor(pendiente.nombre, pendiente.data);
+      (window as any).archivoPendiente = null; // Limpiamos memoria
+    }
+  }
+
+  private cargarBase64EnVisor(nombre: string, base64Data: string) {
+    this.currentFileName = nombre || 'Archivo_Externo';
+    this.zoomLevel = 1.0;
+    this.isViewing = true;
+
+    const arrayBuffer = this.base64ToArrayBuffer(base64Data);
+    const nameLower = this.currentFileName.toLowerCase();
+
+    // Delay preventivo para asegurar la estabilidad del Canvas de renderizado en el DOM
+    setTimeout(() => {
+      if (nameLower.endsWith('.pdf')) {
+        this.pdfSrc = new Uint8Array(arrayBuffer);
+        this.wordHtml = '';
+      }
+      else if (nameLower.endsWith('.docx') || nameLower.endsWith('.doc')) {
+        this.pdfSrc = null;
+        mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+          .then(htmlResult => {
+            this.wordHtml = htmlResult.value;
+          })
+          .catch(err => console.error('Error procesando el Word externo:', err));
+      }
+    }, 200);
   }
 
   /* ===========================================================================*/
   /* ESCANEO DIRECTO DE LAS CARPETAS PÚBLICAS DEL CELULAR                       */
   /* ===========================================================================*/
-
-
   async scanDevice() {
     try {
       this.isScanning = true;
@@ -73,20 +169,19 @@ export class HomePage implements OnInit {
       let idCounter = 1;
       let archivosCrudos: any[] = [];
 
-      // 📁 1. LEER LA CARPETA "Download"
+      // 📁 1. LEER CARPETA "Download"
       try {
         const resDownload = await Filesystem.readdir({
           path: 'Download',
           directory: Directory.ExternalStorage
         });
-        // Le añadimos la propiedad origin en caliente a cada archivo de esta carpeta
         const files = resDownload.files.map(f => ({ ...f, origin: 'Descargas' }));
         archivosCrudos = [...archivosCrudos, ...files];
       } catch (err) {
         console.warn('No se pudo leer Download:', err);
       }
 
-      // 📁 2. LEER LA CARPETA "Documents"
+      // 📁 2. LEER CARPETA "Documents"
       try {
         const resDocs = await Filesystem.readdir({
           path: 'Documents',
@@ -122,7 +217,7 @@ export class HomePage implements OnInit {
         console.warn('No se encontraron archivos en WhatsApp Business.');
       }
 
-      // 🔍 5. FILTRAR Y MAPEAR CON EL ORIGEN INCLUIDO
+      // 🔍 5. FILTRAR Y MAPEAR
       this.allDocuments = archivosCrudos
         .filter(file => {
           if (file.type === 'directory') return false;
@@ -137,7 +232,7 @@ export class HomePage implements OnInit {
             date: file.mtime || Date.now(),
             uri: file.uri,
             path: file.uri,
-            origin: file.origin // 🔥 Pasamos el origen al objeto final de la lista
+            origin: file.origin
           };
         });
 
@@ -146,7 +241,8 @@ export class HomePage implements OnInit {
         index === self.findIndex((t) => t.name === value.name)
       );
 
-      console.log('Archivos indexados con origen:', this.allDocuments);
+      this.filteredDocuments = [...this.allDocuments];
+      console.log('Archivos indexados con éxito:', this.allDocuments);
 
     } catch (error) {
       console.error('Error general en el escaneo:', error);
@@ -156,16 +252,16 @@ export class HomePage implements OnInit {
   }
 
   /* ===========================================================================*/
-  /* VISUALIZADOR INTERNO AL DAR CLIC                                           */
+  /* VISUALIZADOR INTERNO AL DAR CLIC EN LA LISTA LOCAL                         */
   /* ===========================================================================*/
   async renderDocument(doc: DocumentItem) {
     try {
       this.currentFileName = doc.name;
+      this.zoomLevel = 1.0;
       this.isViewing = true;
 
-      // 🔥 LEEMOS DIRECTAMENTE EL ARCHIVO MEDIANTE SU URI ABSOLUTA
       const result = await Filesystem.readFile({
-        path: doc.uri // Capacitor lee la ruta nativa "file:///storage..." directamente
+        path: doc.uri
       });
 
       const arrayBuffer = this.base64ToArrayBuffer(result.data as string);
@@ -181,9 +277,31 @@ export class HomePage implements OnInit {
         this.wordHtml = htmlResult.value;
       }
     } catch (error) {
-      console.error('Error al abrir el documento de la carpeta pública:', error);
+      console.error('Error al abrir el documento local:', error);
       this.isViewing = false;
     }
+  }
+
+  /* ===========================================================================*/
+  /* ACCIÓN DEL BOTÓN FLOTANTE (SELECTOR MANUAL)                                */
+  /* ===========================================================================*/
+  async seleccionarArchivo() {
+    try {
+      console.log('Abriendo el explorador de archivos nativo del celular...');
+    } catch (error) {
+      console.error('Error en el selector manual:', error);
+    }
+  }
+
+  /* ===========================================================================*/
+  /* CONTROLES DE ZOOM (+ / -) Y CIERRE                                         */
+  /* ===========================================================================*/
+  zoomIn() {
+    if (this.zoomLevel < 3.0) this.zoomLevel += 0.2;
+  }
+
+  zoomOut() {
+    if (this.zoomLevel > 0.4) this.zoomLevel -= 0.2;
   }
 
   closeDocument() {
@@ -191,6 +309,7 @@ export class HomePage implements OnInit {
     this.pdfSrc = null;
     this.wordHtml = '';
     this.currentFileName = '';
+    this.zoomLevel = 1.0;
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -201,5 +320,20 @@ export class HomePage implements OnInit {
       bytes[i] = binary_string.charCodeAt(i);
     }
     return bytes.buffer;
+  }
+
+  /* ===========================================================================*/
+  /* FILTRADO EN TIEM REAL DESDE EL INPUT SUPERIOR                             */
+  /* ===========================================================================*/
+  filtrarDocumentos(event: any) {
+    const textoBusqueda = event.target.value ? event.target.value.toLowerCase().trim() : '';
+
+    if (!textoBusqueda) {
+      this.filteredDocuments = [...this.allDocuments];
+      return;
+    }
+    this.filteredDocuments = this.allDocuments.filter(doc => {
+      return doc.name.toLowerCase().includes(textoBusqueda);
+    });
   }
 }
